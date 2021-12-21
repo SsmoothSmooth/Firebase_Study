@@ -1,0 +1,253 @@
+<html>
+    <head>
+        <title>TODO APP</title>
+        <style>
+            .container-login{
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div class="login">
+            <h2>Faça o Login no App</h2>
+            <form class='login-form'>
+                 <input type="email" name="email" />
+                 <input type="password" name="password" />
+                 <input type="submit" name="acao" value="Logar!" />
+            </form>
+        </div><!--Login-->
+
+        <div class ="container-login">
+            <h2>
+                Ai, vc logou 
+                <a class="logout" href="javascript:void(0);">Logout</a>
+            </h2>
+            <form class="form-cadastro-tarefa">
+                <textarea name="tarefa"></textarea>
+                <input type="datetime-local" name="datetime" />
+                <input type="submit" name="acao" value="Cadastrar Tarefa" />
+            </form>
+
+            <div class="tarefas-usuario">
+                <h3>Listagem de tarefas atuais:</h3>
+                <ul id="tarefas"></ul>
+            </div><!--tarefas-usuario-->
+
+        </div><!--conatainer-login-->
+
+        <!-- /**************************************************************************************************************************/ -->
+
+        
+        <script type="module">
+            // Import the functions you need from the SDKs you need
+            import { initializeApp } from "https://www.gstatic.com/firebasejs/9.3.0/firebase-app.js";
+
+            // TODO: Add SDKs for Firebase products that you want to use
+            import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.3.0/firebase-auth.js"
+
+            import { getFirestore, collection, addDoc, getDocs, doc, onSnapshot, where, query, deleteDoc } from "https://www.gstatic.com/firebasejs/9.3.0/firebase-firestore.js"
+
+            // https://firebase.google.com/docs/web/setup#available-libraries
+          
+            // Your web app's Firebase configuration
+            
+            const firebaseConfig = {
+                apiKey: "",
+                authDomain: "",
+                projectId: "",
+                storageBucket: "",
+                messagingSenderId: "",
+                appId: ""
+
+            };
+
+            // Initialize Firebase
+            const app = initializeApp(firebaseConfig);
+
+            // Começamos aqui 
+
+            // Conectar um usuário com endereço de e-mail e senha 
+
+            var usuario = null;
+
+            var formLogin = document.querySelector('form.login-form');
+            var btnLogout = document.querySelector('.logout');
+
+            formLogin.addEventListener('submit', (e)=>{
+                e.preventDefault();    
+                let email = document.querySelector('[name=email]').value;
+                let password = document.querySelector('[name=password]').value;
+                
+                // Testar se esta funcionando 
+
+                // alert(email);
+                // alert(password);
+
+                /***************************/
+
+                // Login de usuários existentes - https://firebase.google.com/docs/auth/web/start#sign_in_existing_users
+
+                const auth = getAuth();
+
+                signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    // Signed in
+                    usuario = userCredential.user;
+                    // ...
+                    alert('Logado com sucesso ! ' + usuario.email);
+                    document.querySelector('.login').style.display = "none"
+                    document.querySelector('.container-login').style.display = "block"
+
+                    formLogin.reset();
+                })
+                .catch((error) => {
+                    const errorCode = error.code;
+                    const errorMessage = error.message;
+                    alert(errorMessage);
+
+                });
+            })
+
+            /**************************************************************************************************************************/
+        
+            // Inicializando o banco
+            const db = getFirestore();
+
+            // Identificar o usuário conectado
+
+            const auth = getAuth();
+            onAuthStateChanged(auth, (val) =>{
+                if(val){
+                    usuario = val;
+                    alert('Bem-vindo de volta ' + usuario.email);
+                    document.querySelector('.login').style.display = "none"
+                    document.querySelector('.container-login').style.display = "block"
+
+                    
+            
+                    // Ouvir por mudanças no banco de dados.
+                    function listenToDocument(){
+                        const q = query(collection(db, "tarefas"), where("horario","!=",null));
+
+                        const unsub = onSnapshot(q, (snapshot) => {
+                            // console.log(snapshot.docs);
+                            let list = document.querySelector('#tarefas');
+                            list.innerHTML= "";
+
+                            let tarefas = snapshot.docs;
+                            tarefas = tarefas.sort(function(a, b){
+                                if(a.data().horario < b.data().horario)
+                                    return -1;
+                                else   
+                                    return +1;
+                            })
+                            // console.log(" Visualizar meu item", tarefas[0].data().tarefa);                
+
+                            tarefas.map((val) => {
+                                list.innerHTML+= `<li>${val.data().tarefa} <a tarefa-id="${val.id}" class="excluir-btn" href="javascript:void(0)">(X)</a> </li>`
+                            })
+
+                            // Excluir Tarefas
+
+                            var excluirTarefas = document.querySelectorAll('.excluir-btn'); // Recupera todos os botões 
+
+                            excluirTarefas.forEach(element => {
+                                element.addEventListener('click', function(e){
+                                    e.preventDefault();
+                                    let docId = element.getAttribute('tarefa-id');
+
+                                    deleteDoc(doc(db, "tarefas", docId))
+                                })
+                            })
+
+                            /**************************************************************************************************************************/
+
+                        });
+                    }
+                    listenToDocument();
+
+
+
+                }
+            })
+            
+            /**************************************************************************************************************************/
+            
+            // Para desconectar um usuário
+
+            btnLogout.addEventListener('click', (e)=>{
+                e.preventDefault();
+                
+                const auth = getAuth();
+
+                signOut(auth).then(() => {
+                    // Sign-out successful.
+                    usuario = null;
+                    document.querySelector('.login').style.display = "block"
+                    document.querySelector('.container-login').style.display = "none"
+                    alert('Deslogado');
+
+                }).catch((error) => {
+                    // An error happened.
+                });
+                
+            })
+
+            /**************************************************************************************************************************/  
+            
+            
+
+            
+            /**************************************************************************************************************************/  
+
+            // Armazenanado dados no banco
+
+            var formCadastro = document.querySelector('.form-cadastro-tarefa');
+
+
+            formCadastro.addEventListener('submit', (e)=>{
+                e.preventDefault();
+
+                let tarefa = document.querySelector('.form-cadastro-tarefa [name=tarefa]').value;
+                let dateTime = document.querySelector('.form-cadastro-tarefa [name=datetime]').value;
+
+                // Inserir e criar coleção
+                async function addNewDocument() {
+                    try {
+                        const docRef = await addDoc(collection(db, "tarefas"), {
+                            tarefa: tarefa,
+                            horario: new Date(dateTime).getTime(),
+                            userId: usuario.uid // Pegado Id do usuário
+                    });
+                        alert('Sua tarefa foi cadastrada com sucesso!');
+                        // console.log("Document written with ID: ", docRef.id);
+                    } catch (e) {
+                        console.error("Error adding document: ", e);
+                    }
+                }
+
+                // Validando se a data não passou
+
+                let dataAtual = new Date().getTime();
+                if(dataAtual > new Date(dateTime).getTime()){
+                    alert('Você informou um data do passado...');
+                
+                }else if (tarefa == "" || dateTime == ""){
+                    alert('Não pode deixar campos vazios.........');
+
+                }else {
+                    addNewDocument();
+                    formCadastro.reset();
+                }
+                
+
+            /***********************************************************************************/    
+        
+            })
+            /***********************************************************************************/
+
+
+        </script>
+    </body>
+</html>
