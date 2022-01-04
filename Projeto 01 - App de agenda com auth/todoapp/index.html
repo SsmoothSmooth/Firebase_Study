@@ -113,7 +113,6 @@
             
             const firebaseConfig = {
 
-                
             };
 
 
@@ -183,7 +182,7 @@
             
                     // Ouvir por mudanças no banco de dados.
                     function listenToDocument(){
-                        const q = query(collection(db, "tarefas"), where("horario","!=",null));
+                        const q = query(collection(db, "tarefas"), where("userId","==",usuario.uid));
 
                         const unsub = onSnapshot(q, (snapshot) => {
                             // console.log(snapshot.docs);
